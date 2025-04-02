@@ -218,7 +218,7 @@ beam_alpha(4:12) = 30;      % Group 2：微透明（綠）
 beam_alpha(13:27) = 60;     % Group 3：半透明（藍）
 beam_alpha(28:48) = 90;     % Group 4：幾乎透明（橘）
 
-for i = 1:1
+for i = 1:length(Iridium_OMNet)
     sat_name = Iridium_OMNet(i);
     sat = root.GetObjectFromPath("/Satellite/" + sat_name);
     
@@ -234,6 +234,7 @@ for i = 1:1
         sensor.SetPointingType('eSnPtFixed');
         sensor.CommonTasks.SetPointingFixedAzEl(beam_config(j, 2), beam_config(j, 1), 'eAzElAboutBoresightRotate')
 
+        % 使用 Graphics 屬性設定beam coverage的可見度
         sensor.Graphics.FillVisible = true;
 
         % 使用 STK Connect 指令設定透明度
