@@ -1,6 +1,6 @@
 function [] = Satellite_Name()
 
-global Iridium Plane Iridium145_TimeLine Iridium_OMNet beam_config;
+global Iridium Plane Iridium_OMNet beam_config;
 
 Plane = [
     "Plane_1"
