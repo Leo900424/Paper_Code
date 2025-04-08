@@ -11,7 +11,7 @@ disp("---------------------- done");
 
 %% 初始化 衛星資訊
 addpath(fullfile(pwd, 'Matlab'));
-global Iridium Plane Iridium145_TimeLine Iridium_OMNet beam_config;
+global Iridium Plane Iridium_OMNet beam_config;
 disp("初始化");
 Satellite_Name();
 file_path = "C:\Users\user\Desktop\Paper_Code\";
@@ -27,6 +27,12 @@ disp("---------------------- done");
 disp("新建立一個場景");
 root.Children.New('eScenario', 'Iridium');
 disp("---------------------- done");
+
+%% STL 關閉後用載入的方式開啟
+disp("載入舊場景");
+root.LoadScenario('C:\Users\user\Desktop\Paper_Code\STK\Scenario20240217\Scenario.sc');
+disp("---------------------- done");
+
 
 %% STK 設定單位與場景時間 (M)
 disp("設定單位與場景時間");
@@ -142,6 +148,67 @@ for i = 1:8:length(data)
 end
 disp("---------------------- done");
 
+%% 建立地面站：Svalbard 與 Izhevsk
+disp("建立地面站 GGS_Svalbard 與 GGS_Izhevsk");
+
+% 1. Svalbard
+ggs1 = sc.Children.New('eFacility', 'GS_Svalbard');
+ggs1.Position.AssignGeodetic(78.2298, 15.4078, 0);  % 緯度, 經度, 高度 (km)
+ggs1.Graphics.LabelVisible = true;
+
+% 設定最小仰角 10 度
+elevation1 = ggs1.AccessConstraints.AddConstraint('eCstrElevationAngle');
+elevation1.EnableMin = 1;
+elevation1.Min = 10;
+
+% 2. Izhevsk
+ggs2 = sc.Children.New('eFacility', 'GS_Izhevsk');
+ggs2.Position.AssignGeodetic(56.8498, 53.2045, 0);
+ggs2.Graphics.LabelVisible = true;
+
+% 設定最小仰角 10 度
+elevation2 = ggs2.AccessConstraints.AddConstraint('eCstrElevationAngle');
+elevation2.EnableMin = 1;
+elevation2.Min = 10;
+
+disp("✅ 地面站與仰角限制設定完成");
+
+
+%% construct access between satellite and ground station
+
+disp("🔍 分析衛星與地面站之間的 Access 時間");
+
+ggs1 = root.GetObjectFromPath("/Facility/GS_Svalbard");
+ggs2 = root.GetObjectFromPath("/Facility/GS_Izhevsk");
+
+for i = 1:length(Iridium_OMNet)
+    satName = Iridium_OMNet(i);
+    satObj = root.GetObjectFromPath("/Satellite/" + satName);
+
+    % 建立與 GGS_Svalbard 的 Access
+    access1 = satObj.GetAccessToObject(ggs1);
+    access1.ComputeAccess;
+
+    % 輸出結果
+    dp1 = access1.DataProviders.Item('Access Data').Exec(sc.StartTime, sc.StopTime);
+    startTimes1 = string(dp1.DataSets.GetDataSetByName('Start Time').GetValues);
+    stopTimes1 = string(dp1.DataSets.GetDataSetByName('Stop Time').GetValues);
+    disp("🛰️ " + satName + " ➜ GGS_Svalbard");
+    disp(table(startTimes1, stopTimes1));
+
+    % 建立與 GGS_Izhevsk 的 Access
+    access2 = satObj.GetAccessToObject(ggs2);
+    access2.ComputeAccess;
+
+    dp2 = access2.DataProviders.Item('Access Data').Exec(sc.StartTime, sc.StopTime);
+    startTimes2 = string(dp2.DataSets.GetDataSetByName('Start Time').GetValues);
+    stopTimes2 = string(dp2.DataSets.GetDataSetByName('Stop Time').GetValues);
+    disp("🛰️ " + satName + " ➜ GGS_Izhevsk");
+    disp(table(startTimes2, stopTimes2));
+end
+
+disp("✅ Access 分析完成");
+
 %% obtain LLR from STK
 % 參考資料： https://blog.csdn.net/u011575168/article/details/80671283
 disp("get LLR");
@@ -204,7 +271,6 @@ path = file_path + "Matlab/XYZ20240217_00_OMNet.mat"; % modify
 % path = file_path + "Log\XYZCellv20240301to31.mat"; % 只分析不同時間點的 Iridium145 
 save(path,"XYZCell");
 disp("XYZCell---------------------- done");
-
 %% Add 48 beams (Sensors) to each satellite
 disp("建立 48 個 Sensor");
 
