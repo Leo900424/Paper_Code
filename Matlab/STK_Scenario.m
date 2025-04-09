@@ -173,10 +173,8 @@ elevation2.Min = 10;
 
 disp("✅ 地面站與仰角限制設定完成");
 
-
 %% construct access between satellite and ground station
-
-disp("🔍 分析衛星與地面站之間的 Access 時間");
+disp("🔍 分析衛星與地面站之間的 Access 時間 + 重疊時間");
 
 ggs1 = root.GetObjectFromPath("/Facility/GS_Svalbard");
 ggs2 = root.GetObjectFromPath("/Facility/GS_Izhevsk");
@@ -185,29 +183,65 @@ for i = 1:length(Iridium_OMNet)
     satName = Iridium_OMNet(i);
     satObj = root.GetObjectFromPath("/Satellite/" + satName);
 
-    % 建立與 GGS_Svalbard 的 Access
+    % === Access to GGS_Svalbard ===
     access1 = satObj.GetAccessToObject(ggs1);
     access1.ComputeAccess;
-
-    % 輸出結果
     dp1 = access1.DataProviders.Item('Access Data').Exec(sc.StartTime, sc.StopTime);
     startTimes1 = string(dp1.DataSets.GetDataSetByName('Start Time').GetValues);
-    stopTimes1 = string(dp1.DataSets.GetDataSetByName('Stop Time').GetValues);
-    disp("🛰️ " + satName + " ➜ GGS_Svalbard");
-    disp(table(startTimes1, stopTimes1));
+    stopTimes1  = string(dp1.DataSets.GetDataSetByName('Stop Time').GetValues);
+    dtStart1 = datetime(startTimes1, 'InputFormat', 'dd MMM yyyy HH:mm:ss.SSS', 'Locale', 'en_US');
+    dtStop1  = datetime(stopTimes1,  'InputFormat', 'dd MMM yyyy HH:mm:ss.SSS', 'Locale', 'en_US');
 
-    % 建立與 GGS_Izhevsk 的 Access
+    % === Access to GGS_Izhevsk ===
     access2 = satObj.GetAccessToObject(ggs2);
     access2.ComputeAccess;
-
     dp2 = access2.DataProviders.Item('Access Data').Exec(sc.StartTime, sc.StopTime);
     startTimes2 = string(dp2.DataSets.GetDataSetByName('Start Time').GetValues);
-    stopTimes2 = string(dp2.DataSets.GetDataSetByName('Stop Time').GetValues);
-    disp("🛰️ " + satName + " ➜ GGS_Izhevsk");
-    disp(table(startTimes2, stopTimes2));
+    stopTimes2  = string(dp2.DataSets.GetDataSetByName('Stop Time').GetValues);
+    dtStart2 = datetime(startTimes2, 'InputFormat', 'dd MMM yyyy HH:mm:ss.SSS', 'Locale', 'en_US');
+    dtStop2  = datetime(stopTimes2,  'InputFormat', 'dd MMM yyyy HH:mm:ss.SSS', 'Locale', 'en_US');
+
+    % % === 顯示 Access 時間 ===
+    % disp("🛰️ " + satName + " ➜ GGS_Svalbard Access 時間：");
+    % disp(table(datestr(dtStart1, 'yyyy/mm/dd HH:MM:SS'), ...
+    %            datestr(dtStop1, 'yyyy/mm/dd HH:MM:SS'), ...
+    %            'VariableNames', {'Start', 'Stop'}));
+
+    % disp("🛰️ " + satName + " ➜ GGS_Izhevsk Access 時間：");
+    % disp(table(datestr(dtStart2, 'yyyy/mm/dd HH:MM:SS'), ...
+    %            datestr(dtStop2, 'yyyy/mm/dd HH:MM:SS'), ...
+    %            'VariableNames', {'Start', 'Stop'}));
+
+    % === 找出交集時間段 ===
+    overlapStart = [];
+    overlapEnd   = [];
+
+    for m = 1:length(dtStart1)
+        for n = 1:length(dtStart2)
+            s = max(dtStart1(m), dtStart2(n));
+            e = min(dtStop1(m), dtStop2(n));
+            if s < e
+                overlapStart = [overlapStart; s];
+                overlapEnd   = [overlapEnd; e];
+            end
+        end
+    end
+
+    disp("🔗 " + satName + " ➜ Svalbard & Izhevsk 同時可見區段：");
+    if isempty(overlapStart)
+        disp("⚠️ 無重疊區段");
+    else
+        disp(table(datestr(overlapStart, 'yyyy/mm/dd HH:MM:SS'), ...
+                   datestr(overlapEnd,   'yyyy/mm/dd HH:MM:SS'), ...
+                   'VariableNames', {'Start', 'Stop'}));
+    end
+
+    disp("--------------------------------------------------");
 end
 
-disp("✅ Access 分析完成");
+disp("✅ Access + 重疊時間 分析完成");
+
+
 
 %% obtain LLR from STK
 % 參考資料： https://blog.csdn.net/u011575168/article/details/80671283
