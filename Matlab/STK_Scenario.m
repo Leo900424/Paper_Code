@@ -173,6 +173,18 @@ elevation2.Min = 10;
 
 disp("✅ 地面站與仰角限制設定完成");
 
+%% Construct UE
+
+ue1 = sc.Children.New('eFacility', 'UE1');
+ue1.Position.AssignGeodetic(67.54, 34.31, 0);;  % 北緯 70, 東經 40
+
+ue1.Graphics.LabelVisible = true;
+
+% 設定最小仰角 10 度
+elevation = ue1.AccessConstraints.AddConstraint('eCstrElevationAngle');
+elevation.EnableMin = 1;
+elevation.Min = 10;
+
 %% construct access between satellite and ground station
 disp("🔍 分析衛星與地面站之間的 Access 時間 + 重疊時間");
 
@@ -241,8 +253,96 @@ end
 
 disp("✅ Access + 重疊時間 分析完成");
 
+%% Add 48 beams (Sensors) to each satellite
+disp("建立 48 個 Sensor");
 
+beam_count = 48;
+cone_half_angle = 14; % 錐角角度（度）
 
+% 設定 4 group 對應透明度
+beam_alpha = zeros(48, 1);
+beam_alpha(1:3) = 0;        % Group 1：最不透明（紅）
+beam_alpha(4:12) = 30;      % Group 2：微透明（綠）
+beam_alpha(13:27) = 60;     % Group 3：半透明（藍）
+beam_alpha(28:48) = 90;     % Group 4：幾乎透明（橘）
+
+for i = 1:length(Iridium_OMNet)
+    sat_name = Iridium_OMNet(i);
+    sat = root.GetObjectFromPath("/Satellite/" + sat_name);
+    
+    for j = 1:beam_count
+        beam_name = "Sensor" + num2str(j);
+        sensor = sat.Children.New('eSensor', beam_name);
+
+        % 設定 Pattern 為 Simple Conic
+        sensor.SetPatternType('eSnSimpleConic');
+        sensor.CommonTasks.SetPatternSimpleConic(double(cone_half_angle), double(1));  % 使用 double 以避免錯誤
+
+        % 指向設定：固定 Az/El 方位角
+        sensor.SetPointingType('eSnPtFixed');
+        sensor.CommonTasks.SetPointingFixedAzEl(beam_config(j, 2), beam_config(j, 1), 'eAzElAboutBoresightRotate')
+
+        % 使用 Graphics 屬性設定beam coverage的可見度
+        sensor.Graphics.FillVisible = true;
+
+        % 使用 STK Connect 指令設定透明度
+        cmd = sprintf('Graphics */Satellite/%s/Sensor/%s FillTranslucency %d', ...
+                      sat_name, beam_name, beam_alpha(j));
+        root.ExecuteCommand(cmd);
+        disp(sat_name + ' ' + beam_name + ' complete');
+    end
+end
+
+disp("✨ Sensor 建立完成");
+
+%% Construct access between each beam and UE for all satellites
+disp("🔍 對所有衛星分析 UE 的 Access");
+
+ueName = "ue1";         % 可改成你實際建立的 UE 名稱
+beamCount = 48;
+UE_beam_access = table();
+
+ueObj = root.GetObjectFromPath("/Facility/" + ueName);
+
+for satIdx = 1:length(Iridium_OMNet)
+    satName = Iridium_OMNet(satIdx);
+    satObj = root.GetObjectFromPath("/Satellite/" + satName);
+
+    for beamIdx = 1:beamCount
+        beamName = "Sensor" + num2str(beamIdx);
+        try
+            sensor = satObj.Children.Item(beamName);
+
+            % 建立與 UE 的 Access
+            access = sensor.GetAccessToObject(ueObj);
+            access.ComputeAccess;
+
+            % 擷取 Access 資訊
+            dp = access.DataProviders.Item('Access Data').Exec(sc.StartTime, sc.StopTime);
+            if dp.DataSets.Count > 0
+                starts = string(dp.DataSets.GetDataSetByName('Start Time').GetValues);
+                stops  = string(dp.DataSets.GetDataSetByName('Stop Time').GetValues);
+
+                for j = 1:length(starts)
+                    UE_beam_access = [UE_beam_access; 
+                        table(string(satName), string(beamName), starts(j), stops(j), ...
+                        'VariableNames', {'Satellite', 'Beam', 'StartTime', 'StopTime'})];
+                end
+            end
+        catch ME
+            warning("⚠️ 讀取 %s 的 %s 時發生錯誤：%s", satName, beamName, ME.message);
+        end
+    end
+end
+
+disp("✅ 所有衛星的 UE Access 分析完成");
+
+% 轉換時間格式並排序
+UE_beam_access.StartTime = datetime(UE_beam_access.StartTime, 'InputFormat', 'dd MMM yyyy HH:mm:ss.SSS', 'Locale', 'en_US');
+UE_beam_access.StopTime  = datetime(UE_beam_access.StopTime,  'InputFormat', 'dd MMM yyyy HH:mm:ss.SSS', 'Locale', 'en_US');
+UE_beam_access_sorted = sortrows(UE_beam_access, 'StartTime');
+
+disp(UE_beam_access_sorted);
 %% obtain LLR from STK
 % 參考資料： https://blog.csdn.net/u011575168/article/details/80671283
 disp("get LLR");
@@ -252,7 +352,7 @@ LLRCell = cell(sat_nums,1);
 for i = 1:sat_nums
     disp("/Satellite/"+Iridium_OMNet(i));
     satellite = root.GetObjectFromPath("/Satellite/"+Iridium_OMNet(i));
-
+    
     satPosDP = satellite.DataProviders.Item('LLR State').Group.Item('Fixed').Exec(sc.StartTime,sc.StopTime,5);
     Time = cell2mat(satPosDP.DataSets.GetDataSetByName('Time').GetValues);
     Lat = cell2mat(satPosDP.DataSets.GetDataSetByName('Lat').GetValues);
@@ -305,47 +405,6 @@ path = file_path + "Matlab/XYZ20240217_00_OMNet.mat"; % modify
 % path = file_path + "Log\XYZCellv20240301to31.mat"; % 只分析不同時間點的 Iridium145 
 save(path,"XYZCell");
 disp("XYZCell---------------------- done");
-%% Add 48 beams (Sensors) to each satellite
-disp("建立 48 個 Sensor");
-
-beam_count = 48;
-cone_half_angle = 14; % 錐角角度（度）
-
-% 設定 4 group 對應透明度
-beam_alpha = zeros(48, 1);
-beam_alpha(1:3) = 0;        % Group 1：最不透明（紅）
-beam_alpha(4:12) = 30;      % Group 2：微透明（綠）
-beam_alpha(13:27) = 60;     % Group 3：半透明（藍）
-beam_alpha(28:48) = 90;     % Group 4：幾乎透明（橘）
-
-for i = 1:length(Iridium_OMNet)
-    sat_name = Iridium_OMNet(i);
-    sat = root.GetObjectFromPath("/Satellite/" + sat_name);
-    
-    for j = 1:beam_count
-        beam_name = "Sensor" + num2str(j);
-        sensor = sat.Children.New('eSensor', beam_name);
-
-        % 設定 Pattern 為 Simple Conic
-        sensor.SetPatternType('eSnSimpleConic');
-        sensor.CommonTasks.SetPatternSimpleConic(double(cone_half_angle), double(1));  % 使用 double 以避免錯誤
-
-        % 指向設定：固定 Az/El 方位角
-        sensor.SetPointingType('eSnPtFixed');
-        sensor.CommonTasks.SetPointingFixedAzEl(beam_config(j, 2), beam_config(j, 1), 'eAzElAboutBoresightRotate')
-
-        % 使用 Graphics 屬性設定beam coverage的可見度
-        sensor.Graphics.FillVisible = true;
-
-        % 使用 STK Connect 指令設定透明度
-        cmd = sprintf('Graphics */Satellite/%s/Sensor/%s FillTranslucency %d', ...
-                      sat_name, beam_name, beam_alpha(j));
-        root.ExecuteCommand(cmd);
-        disp(sat_name + ' ' + beam_name + ' complete');
-    end
-end
-
-disp("✨ Sensor 建立完成");
 
 
 %% Save STK scenario
