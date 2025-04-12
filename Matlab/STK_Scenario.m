@@ -304,7 +304,7 @@ UE_beam_access = table();
 
 ueObj = root.GetObjectFromPath("/Facility/" + ueName);
 
-for satIdx = 1:length(Iridium_OMNet)
+for satIdx = 1:1
     satName = Iridium_OMNet(satIdx);
     satObj = root.GetObjectFromPath("/Satellite/" + satName);
 
@@ -343,6 +343,40 @@ UE_beam_access.StopTime  = datetime(UE_beam_access.StopTime,  'InputFormat', 'dd
 UE_beam_access_sorted = sortrows(UE_beam_access, 'StartTime');
 
 disp(UE_beam_access_sorted);
+
+%% Construct beam to gateway mapping table with sequential switch
+t_start = datetime('20 Mar 2024 14:40:00', 'InputFormat', 'dd MMM yyyy HH:mm:ss');
+t_stop  = datetime('20 Mar 2024 14:48:00', 'InputFormat', 'dd MMM yyyy HH:mm:ss');
+time_slots = t_start:seconds(5):t_stop;
+
+beam_gateway_table = table(); % 儲存結果
+
+for satIdx = 1:1
+    satName = Iridium_OMNet(satIdx);
+    for beamIdx = 1:48
+        beamName = "Sensor" + num2str(beamIdx);
+
+        % 計算該 beam 切換時間點
+        switch_time = datetime('20 Mar 2024 14:44:00', 'InputFormat', 'dd MMM yyyy HH:mm:ss') + seconds(5 * (beamIdx - 1));
+
+        for t = time_slots
+            % 初始皆為 Svalbard，超過 switch_time 的 beam 才切換
+            if t < switch_time
+                gw = "Svalbard";
+            else
+                gw = "Izhevsk";
+            end
+
+            beam_gateway_table = [beam_gateway_table;
+                table(satName, beamName, t, gw, ...
+                    'VariableNames', {'Satellite', 'Beam', 'Time', 'Gateway'})];
+        end
+    end
+end
+
+rows = beam_gateway_table.Satellite == "sat1_1" & beam_gateway_table.Beam == "Sensor25";
+disp(beam_gateway_table(rows, :));
+
 %% obtain LLR from STK
 % 參考資料： https://blog.csdn.net/u011575168/article/details/80671283
 disp("get LLR");
