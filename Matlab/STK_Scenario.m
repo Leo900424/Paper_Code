@@ -1,7 +1,6 @@
 %% 重置 Command window 與 Workspace
 clear;
 clc;
-
 %% 與STK連線
 disp("連接STK");
 con = actxGetRunningServer('STK12.application');
@@ -10,6 +9,7 @@ con.Visible = 1;
 disp("---------------------- done");
 
 %% 初始化 衛星資訊
+addpath(fullfile(pwd, 'Matlab', 'Method'));
 addpath(fullfile(pwd, 'Matlab'));
 global Iridium Plane Iridium_OMNet beam_config;
 disp("初始化");
@@ -55,100 +55,32 @@ root.SaveAs(file_path + 'STK\Scenario20240217\Scenario'); % modify
 disp("---------------------- done");
 
 %% Read TLE Content 
+
 disp("read TLEs");
-file = fopen(file_path + 'iridium_tle/TLE_2025_03_31_18_celestrak.txt','r'); % 讀取本地端檔案   % modify
-if file == -1
+
+% 開啟檔案
+file_path = "C:\Users\user\Desktop\Paper_Code\";
+filename = file_path + "iridium_tle/TLE_2025_03_31_18_celestrak.txt";
+fid = fopen(filename, 'r');
+if fid == -1
     error('❌ 無法開啟 TLE 檔案，請確認路徑是否正確');
 end
-data = [];
-n1 = 0;
-miu = 3.9686e5;
-sat_number = n1/3;
 
-count = 1;
-while ~feof(file)
-    tline = fgetl(file);
-    tmp = split(tline);
+% 讀取所有行
+tle_lines = textscan(fid, '%s', 'Delimiter', '\n');
+fclose(fid);
+tle_lines = tle_lines{1};
 
-    if mod(count, 3) == 1
-        % data = [data, tmp(1)];%     satellite name
-        data = [data, tmp(2)+"_"+tmp(3)];%     satellite name
-        disp(tmp(2)+"_"+tmp(3));
-    elseif mod(count, 3) == 0
-        data = [data, tmp(3)];%     Inclination
-        data = [data, tmp(4)];%     Right_Ascension_of_the_Ascending_node
-        data = [data, tmp(5)];%     Eccentricity
-        data = [data, tmp(6)];%     Argument_of_Perigee
-        data = [data, tmp(7)];%     Mean_Anomaly
-        data = [data, tmp(8)];%     Mean_Motion
-
-    elseif mod(count, 3) == 2
-        data = [data, tmp(4)];%     Time Epoch
-        epoch = tmp(4);
-        a = str2double(epoch);
-        y = fix(a/1000);
-        [yy, mm, dd, HH, MM, SS] = datevec(datenum(y,0,a - y*1000)); % corrected
-        if yy <= 56
-            fprintf('20%02d/%02d/%02d %02d:%02d:%06.4f\n',yy,mm,dd,HH,MM,SS);
-        else
-            fprintf('19%02d/%02d/%02d %02d:%02d:%06.4f\n',yy,mm,dd,HH,MM,SS);
-        end
-    end
-    count = count + 1;
-end
-fclose(file);
+% 呼叫 function 處理 TLE
+tle_data = parseTLE(tle_lines);
 disp("---------------------- done");
 
 %% Add satellite in STK through TLE file
-disp("add satellites");
-root.UnitPreferences.Item('DateFormat').SetCurrentUnit('UTCG');
-for i = 1:8:length(data)
-    % 提取衛星資料
-    sat_name = string(data(i));
-    if ~ismember(1, strcmp(sat_name,Iridium)) % 只新增需要的衛星 (有在 Satellite_Name 名單內)
-       disp(sat_name + " not used");
-       continue; 
-    else
-        disp(fix(i/8)+1 + "");
-    end
-    epoch = string(data(i+1));
-    Inclination = str2double(cell2mat(data(i+2)));
-    Right_Ascension_of_the_Ascending_node = str2double(cell2mat(data(i+3)));
-    Eccentricity = str2double(cell2mat(data(i+4)))*10^-6;
-    Argument_of_Perigee = str2double(cell2mat(data(i+5)));
-    Mean_Anomaly = str2double(cell2mat(data(i+6)));
-    Mean_Motion = str2double(cell2mat(data(i+7)));
-    % epoch to datetime string
-    e1 = str2double(regexp(epoch, '(\d{2})(\d{3})(\.\d+)', 'tokens', 'once'));
-    en = datenum(e1(1) + 2000, 0, e1(2), 24 * e1(3), 0, 0);
-    et = datetime(en, 'ConvertFrom', 'datenum');
-    es = datestr(et);
-    
-    % 新增衛星物件
-    disp(Iridium_OMNet(find(Iridium == sat_name ))); % 將衛星名稱依順序轉換成特定編號
-    sat = sc.Children.New('eSatellite',  string(Iridium_OMNet(find(Iridium == sat_name ))) );
-    
-    % HPOP 設定方式
-    sat.SetPropagatorType('ePropagatorHPOP');
-    sat.Propagator.InitialState.OrbitEpoch.SetExplicitTime(es);
-    kepler = sat.Propagator.InitialState.Representation.ConvertTo('eOrbitStateClassical');
-    kepler.SizeShapeType = 'eSizeShapeMeanMotion';
-    kepler.LocationType = 'eLocationMeanAnomaly';
-    kepler.Orientation.AscNodeType = 'eAscNodeRAAN';
 
-    kepler.SizeShape.MeanMotion = Mean_Motion * 0.0041666648666668;
-    kepler.SizeShape.Eccentricity = Eccentricity;
-    kepler.Orientation.Inclination = Inclination;
-    kepler.Orientation.ArgOfPerigee = Argument_of_Perigee;
-    kepler.Orientation.AscNode.Value = Right_Ascension_of_the_Ascending_node;
-    kepler.Location.value = Mean_Anomaly;
-
-    sat.Propagator.InitialState.Representation.Assign(kepler);
-    sat.Propagator.Propagate;
-end
-disp("---------------------- done");
+addSatellitesFromTLE(root, sc, data, Iridium, Iridium_OMNet);
 
 %% 建立地面站：Svalbard 與 Izhevsk
+
 disp("建立地面站 GGS_Svalbard 與 GGS_Izhevsk");
 
 % 1. Svalbard
@@ -176,7 +108,7 @@ disp("✅ 地面站與仰角限制設定完成");
 %% Construct UE
 
 ue1 = sc.Children.New('eFacility', 'UE1');
-ue1.Position.AssignGeodetic(67.54, 34.31, 0);;  % 北緯 70, 東經 40
+ue1.Position.AssignGeodetic(67.54, 34.31, 0);  % 北緯 70, 東經 40
 
 ue1.Graphics.LabelVisible = true;
 
@@ -185,272 +117,65 @@ elevation = ue1.AccessConstraints.AddConstraint('eCstrElevationAngle');
 elevation.EnableMin = 1;
 elevation.Min = 10;
 
-%% construct access between satellite and ground station
-disp("🔍 分析衛星與地面站之間的 Access 時間 + 重疊時間");
-
-ggs1 = root.GetObjectFromPath("/Facility/GS_Svalbard");
-ggs2 = root.GetObjectFromPath("/Facility/GS_Izhevsk");
-
-for i = 1:1                     % length(Iridium_OMNet)
-    satName = Iridium_OMNet(i);
-    satObj = root.GetObjectFromPath("/Satellite/" + satName);
-
-    % === Access to GGS_Svalbard ===
-    access1 = satObj.GetAccessToObject(ggs1);
-    access1.ComputeAccess;
-    dp1 = access1.DataProviders.Item('Access Data').Exec(sc.StartTime, sc.StopTime);
-    startTimes1 = string(dp1.DataSets.GetDataSetByName('Start Time').GetValues);
-    stopTimes1  = string(dp1.DataSets.GetDataSetByName('Stop Time').GetValues);
-    dtStart1 = datetime(startTimes1, 'InputFormat', 'dd MMM yyyy HH:mm:ss.SSS', 'Locale', 'en_US');
-    dtStop1  = datetime(stopTimes1,  'InputFormat', 'dd MMM yyyy HH:mm:ss.SSS', 'Locale', 'en_US');
-
-    % === Access to GGS_Izhevsk ===
-    access2 = satObj.GetAccessToObject(ggs2);
-    access2.ComputeAccess;
-    dp2 = access2.DataProviders.Item('Access Data').Exec(sc.StartTime, sc.StopTime);
-    startTimes2 = string(dp2.DataSets.GetDataSetByName('Start Time').GetValues);
-    stopTimes2  = string(dp2.DataSets.GetDataSetByName('Stop Time').GetValues);
-    dtStart2 = datetime(startTimes2, 'InputFormat', 'dd MMM yyyy HH:mm:ss.SSS', 'Locale', 'en_US');
-    dtStop2  = datetime(stopTimes2,  'InputFormat', 'dd MMM yyyy HH:mm:ss.SSS', 'Locale', 'en_US');
-
-    % === 顯示 Access 時間 ===
-    disp("🛰️ " + satName + " ➜ GGS_Svalbard Access 時間：");
-    disp(table(dtStart1, dtStop1, 'VariableNames', {'Start', 'Stop'}));
-
-    disp("🛰️ " + satName + " ➜ GGS_Izhevsk Access 時間：");
-    disp(table(dtStart2, dtStop2, 'VariableNames', {'Start', 'Stop'}));
-
-    % === 找出交集時間段 ===
-    overlapStart = [];
-    overlapEnd   = [];
-
-    for m = 1:length(dtStart1)
-        for n = 1:length(dtStart2)
-            s = max(dtStart1(m), dtStart2(n));
-            e = min(dtStop1(m), dtStop2(n));
-            if s < e
-                overlapStart = [overlapStart; s];
-                overlapEnd   = [overlapEnd; e];
-            end
-        end
-    end
-
-    disp("🔗 " + satName + " ➜ Svalbard & Izhevsk 同時可見區段：");
-    if isempty(overlapStart)
-        disp("⚠️ 無重疊區段");
-    else
-        disp(table(overlapStart, overlapEnd, 'VariableNames', {'Start', 'Stop'}));
-
-    end
-
-    disp("--------------------------------------------------");
-end
-
-disp("✅ Access + 重疊時間 分析完成");
-
 %% Add 48 beams (Sensors) to each satellite
-disp("建立 48 個 Sensor");
 
-beam_count = 48;
-cone_half_angle = 14; % 錐角角度（度）
-
-% 設定 4 group 對應透明度
-beam_alpha = zeros(48, 1);
-beam_alpha(1:3) = 0;        % Group 1：最不透明（紅）
-beam_alpha(4:12) = 30;      % Group 2：微透明（綠）
-beam_alpha(13:27) = 60;     % Group 3：半透明（藍）
-beam_alpha(28:48) = 90;     % Group 4：幾乎透明（橘）
-
-for i = 1:length(Iridium_OMNet)
-    sat_name = Iridium_OMNet(i);
-    sat = root.GetObjectFromPath("/Satellite/" + sat_name);
-    
-    for j = 1:beam_count
-        beam_name = "Sensor" + num2str(j);
-        sensor = sat.Children.New('eSensor', beam_name);
-
-        % 設定 Pattern 為 Simple Conic
-        sensor.SetPatternType('eSnSimpleConic');
-        sensor.CommonTasks.SetPatternSimpleConic(double(cone_half_angle), double(1));  % 使用 double 以避免錯誤
-
-        % 指向設定：固定 Az/El 方位角
-        sensor.SetPointingType('eSnPtFixed');
-        sensor.CommonTasks.SetPointingFixedAzEl(beam_config(j, 2), beam_config(j, 1), 'eAzElAboutBoresightRotate')
-
-        % 使用 Graphics 屬性設定beam coverage的可見度
-        sensor.Graphics.FillVisible = true;
-
-        % 使用 STK Connect 指令設定透明度
-        cmd = sprintf('Graphics */Satellite/%s/Sensor/%s FillTranslucency %d', ...
-                      sat_name, beam_name, beam_alpha(j));
-        root.ExecuteCommand(cmd);
-        disp(sat_name + ' ' + beam_name + ' complete');
-    end
-end
+addAllBeamsToSatellites(root, Iridium_OMNet, beam_config);
 
 disp("✨ Sensor 建立完成");
 
+%% construct access between satellite and ground station
+
+[overlapTable, overlapStart] = computeSatGSaccess(root, sc, Iridium_OMNet);
+
+disp(overlapTable);
+
+
 %% Compute access between each beam and UE for all satellites
-disp("🔍 分析 UE 的 Access");
 
-ueName = "ue1";         % 可改成你實際建立的 UE 名稱
+ueName = "ue1";
 beamCount = 48;
-UE_beam_access = table();
-
-ueObj = root.GetObjectFromPath("/Facility/" + ueName);
-
-for satIdx = 1:1
-    satName = Iridium_OMNet(satIdx);
-    satObj = root.GetObjectFromPath("/Satellite/" + satName);
-
-    for beamIdx = 1:beamCount
-        beamName = "Sensor" + num2str(beamIdx);
-        try
-            sensor = satObj.Children.Item(beamName);
-
-            % 建立與 UE 的 Access 
-            access = sensor.GetAccessToObject(ueObj);
-            access.ComputeAccess;
-
-            % 擷取 Access 資訊
-            dp = access.DataProviders.Item('Access Data').Exec(sc.StartTime, sc.StopTime);
-            if dp.DataSets.Count > 0
-                starts = string(dp.DataSets.GetDataSetByName('Start Time').GetValues);
-                stops  = string(dp.DataSets.GetDataSetByName('Stop Time').GetValues);
-
-                for j = 1:length(starts)
-                    UE_beam_access = [UE_beam_access; 
-                        table(string(satName), string(beamName), string(ueName), starts(j), stops(j), ...
-                        'VariableNames', {'Satellite', 'Beam', 'UE', 'StartTime', 'StopTime'})];
-                end
-            end
-        catch ME
-            warning("⚠️ 讀取 %s 的 %s 時發生錯誤：%s", satName, beamName, ME.message);
-        end
-    end
-end
-
-disp("✅ 所有衛星的 UE Access 分析完成");
-
-% 轉換時間格式並排序
-UE_beam_access.StartTime = datetime(UE_beam_access.StartTime, 'InputFormat', 'dd MMM yyyy HH:mm:ss.SSS', 'Locale', 'en_US');
-UE_beam_access.StopTime  = datetime(UE_beam_access.StopTime,  'InputFormat', 'dd MMM yyyy HH:mm:ss.SSS', 'Locale', 'en_US');
-UE_beam_access_sorted = sortrows(UE_beam_access, 'StartTime');
+UE_beam_access_sorted = computeUEBeamAccess(root, sc, Iridium_OMNet, ueName, beamCount);
 
 disp(UE_beam_access_sorted);
 
-%% Construct beam-to-gateway mapping with sequential switch (可調整切換間隔)
+%% Construct time slot and interval
+
 t_start = datetime('20 Mar 2024 14:40:00', 'InputFormat', 'dd MMM yyyy HH:mm:ss');
 t_stop  = datetime('20 Mar 2024 14:48:00', 'InputFormat', 'dd MMM yyyy HH:mm:ss');
 time_slots = t_start:seconds(1):t_stop; % the value of time interval
 
-beam_gateway_table = table();
+%% Develop different strategy of ordering the beam
 
-% 設定切換的初始時間與每個 beam 間的延遲
-fl_switch_start_time = datetime('20 Mar 2024 14:44:00', 'InputFormat', 'dd MMM yyyy HH:mm:ss');
-switch_gap = seconds(1);  % 每個 beam 間隔 ? 秒切換
-
-for satIdx = 1:1
-    satName = Iridium_OMNet(satIdx);
-
-    for beamIdx = 1:48
-        beamName = "Sensor" + num2str(beamIdx);
-
-        % 計算該 beam 的實際切換時間
-        beam_switch_time = fl_switch_start_time + (beamIdx - 1) * switch_gap;
-
-        for t = time_slots
-            if t < beam_switch_time
-                gw = "Svalbard";
-            else
-                gw = "Izhevsk";
-            end
-
-            beam_gateway_table = [beam_gateway_table;
-                table(satName, beamName, t, gw, ...
-                      'VariableNames', {'Satellite', 'Beam', 'Time', 'Gateway'})];
-        end
-    end
-end
-
-% 觀察指定 beam 的狀態（以 sat1_1 的 Sensor25 為例）
-rows = beam_gateway_table.Satellite == "sat1_1" & beam_gateway_table.Beam == "Sensor25";
-disp(beam_gateway_table(rows, :));
+strategy_round_robin = 1:48;
+strategy_random       = randperm(48);
+strategy_outer_to_inner = [28:48, 13:27, 4:12, 1:3];
+strategy_inner_to_outer = [1:3, 4:12, 13:27, 28:48];  % 這是你可能關注的策略
 
 %% Construct beam-to-gateway mapping with sequential switch starting when satellite can access two gs simultaneously
-t_start = datetime('20 Mar 2024 14:40:00', 'InputFormat', 'dd MMM yyyy HH:mm:ss');
-t_stop  = datetime('20 Mar 2024 14:48:00', 'InputFormat', 'dd MMM yyyy HH:mm:ss');
-time_slots = t_start:seconds(1):t_stop; % the value of time interval
 
-beam_gateway_table = table();
+strategy = strategy_outer_to_inner;
+switch_gap = seconds(5);
+beam_gateway_table = constructBeamGatewayTable(time_slots, Iridium_OMNet, overlapStart, strategy, switch_gap);
 
-% 設定切換的初始時間與每個 beam 間的延遲
-fl_switch_start_time = overlapStart(1);
-
-% 每個 beam 間隔 ? 秒切換
-switch_gap = seconds(5);  
-
-for satIdx = 1:1
-    satName = Iridium_OMNet(satIdx);
-
-    for beamIdx = 1:48
-        beamName = "Sensor" + num2str(beamIdx);
-
-        % 計算該 beam 的實際切換時間
-        beam_switch_time = fl_switch_start_time + (beamIdx - 1) * switch_gap;
-
-        for t = time_slots
-            if t < beam_switch_time
-                gw = "Svalbard";
-            else
-                gw = "Izhevsk";
-            end
-
-            beam_gateway_table = [beam_gateway_table;
-                table(satName, beamName, t, gw, ...
-                      'VariableNames', {'Satellite', 'Beam', 'Time', 'Gateway'})];
-        end
-    end
-end
 
 % 觀察指定 beam 的狀態（以 sat1_1 的 Sensor25 為例）
 rows = beam_gateway_table.Satellite == "sat1_1" & beam_gateway_table.Beam == "Sensor25";
 disp(beam_gateway_table(rows, :));
 
-%% Construct the table including UE beams and satellite in each time slot.
 
-ueName = "ue1";         % 可改成你實際建立的 UE 名稱
-UE_time_table = table(); % 每行記錄 UE 在某秒連接哪個 beam/gateway
+%% Construct the table including UE beams and satellite in each time slot
 
-for t = time_slots
-    % 找出 UE 在這個時間 t 連到的 beam
-    access_row = UE_beam_access_sorted(UE_beam_access_sorted.StartTime <= t & UE_beam_access_sorted.StopTime >= t, :);
+ueName = "ue1";
 
-    if ~isempty(access_row)
-        beam_id = access_row.Beam(1);  % 有時會同時有多筆，取第一筆即可
-        sat_id  = access_row.Satellite(1);
-    else
-        beam_id = "None";
-        sat_id  = "None";
-    end
-
-    % 找出該 beam 在此時間連到哪個 gateway
-    gw_row = beam_gateway_table(beam_gateway_table.Satellite == sat_id & ...
-                                beam_gateway_table.Beam == beam_id & ...
-                                beam_gateway_table.Time == t, :);
-
-    if ~isempty(gw_row)
-        gateway = gw_row.Gateway(1);
-    else
-        gateway = "None";
-    end
-
-    UE_time_table = [UE_time_table;
-        table(t, ueName, sat_id, beam_id, gateway, ...
-              'VariableNames', {'Time', 'UE', 'Satellite', 'Beam', 'Gateway'})];
-end
+UE_time_table = constructUETimeTable(time_slots, ueName, UE_beam_access_sorted, beam_gateway_table);
 
 disp(UE_time_table);
+
+%% Count the number of Feeder link switch
+
+switch_count = countFLSwitchInterruptions(UE_time_table);
+
+disp("🚨 FL switch 導致的中斷次數為：" + switch_count);
 
 %% obtain LLR from STK
 % 參考資料： https://blog.csdn.net/u011575168/article/details/80671283
