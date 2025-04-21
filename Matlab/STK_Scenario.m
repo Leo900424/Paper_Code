@@ -191,7 +191,7 @@ disp("🔍 分析衛星與地面站之間的 Access 時間 + 重疊時間");
 ggs1 = root.GetObjectFromPath("/Facility/GS_Svalbard");
 ggs2 = root.GetObjectFromPath("/Facility/GS_Izhevsk");
 
-for i = 1:length(Iridium_OMNet)
+for i = 1:1                     % length(Iridium_OMNet)
     satName = Iridium_OMNet(i);
     satObj = root.GetObjectFromPath("/Satellite/" + satName);
 
@@ -213,16 +213,12 @@ for i = 1:length(Iridium_OMNet)
     dtStart2 = datetime(startTimes2, 'InputFormat', 'dd MMM yyyy HH:mm:ss.SSS', 'Locale', 'en_US');
     dtStop2  = datetime(stopTimes2,  'InputFormat', 'dd MMM yyyy HH:mm:ss.SSS', 'Locale', 'en_US');
 
-    % % === 顯示 Access 時間 ===
-    % disp("🛰️ " + satName + " ➜ GGS_Svalbard Access 時間：");
-    % disp(table(datestr(dtStart1, 'yyyy/mm/dd HH:MM:SS'), ...
-    %            datestr(dtStop1, 'yyyy/mm/dd HH:MM:SS'), ...
-    %            'VariableNames', {'Start', 'Stop'}));
+    % === 顯示 Access 時間 ===
+    disp("🛰️ " + satName + " ➜ GGS_Svalbard Access 時間：");
+    disp(table(dtStart1, dtStop1, 'VariableNames', {'Start', 'Stop'}));
 
-    % disp("🛰️ " + satName + " ➜ GGS_Izhevsk Access 時間：");
-    % disp(table(datestr(dtStart2, 'yyyy/mm/dd HH:MM:SS'), ...
-    %            datestr(dtStop2, 'yyyy/mm/dd HH:MM:SS'), ...
-    %            'VariableNames', {'Start', 'Stop'}));
+    disp("🛰️ " + satName + " ➜ GGS_Izhevsk Access 時間：");
+    disp(table(dtStart2, dtStop2, 'VariableNames', {'Start', 'Stop'}));
 
     % === 找出交集時間段 ===
     overlapStart = [];
@@ -243,9 +239,8 @@ for i = 1:length(Iridium_OMNet)
     if isempty(overlapStart)
         disp("⚠️ 無重疊區段");
     else
-        disp(table(datestr(overlapStart, 'yyyy/mm/dd HH:MM:SS'), ...
-                   datestr(overlapEnd,   'yyyy/mm/dd HH:MM:SS'), ...
-                   'VariableNames', {'Start', 'Stop'}));
+        disp(table(overlapStart, overlapEnd, 'VariableNames', {'Start', 'Stop'}));
+
     end
 
     disp("--------------------------------------------------");
@@ -295,8 +290,8 @@ end
 
 disp("✨ Sensor 建立完成");
 
-%% Construct access between each beam and UE for all satellites
-disp("🔍 對所有衛星分析 UE 的 Access");
+%% Compute access between each beam and UE for all satellites
+disp("🔍 分析 UE 的 Access");
 
 ueName = "ue1";         % 可改成你實際建立的 UE 名稱
 beamCount = 48;
@@ -313,7 +308,7 @@ for satIdx = 1:1
         try
             sensor = satObj.Children.Item(beamName);
 
-            % 建立與 UE 的 Access
+            % 建立與 UE 的 Access 
             access = sensor.GetAccessToObject(ueObj);
             access.ComputeAccess;
 
@@ -325,8 +320,8 @@ for satIdx = 1:1
 
                 for j = 1:length(starts)
                     UE_beam_access = [UE_beam_access; 
-                        table(string(satName), string(beamName), starts(j), stops(j), ...
-                        'VariableNames', {'Satellite', 'Beam', 'StartTime', 'StopTime'})];
+                        table(string(satName), string(beamName), string(ueName), starts(j), stops(j), ...
+                        'VariableNames', {'Satellite', 'Beam', 'UE', 'StartTime', 'StopTime'})];
                 end
             end
         catch ME
@@ -344,24 +339,28 @@ UE_beam_access_sorted = sortrows(UE_beam_access, 'StartTime');
 
 disp(UE_beam_access_sorted);
 
-%% Construct beam to gateway mapping table with sequential switch
+%% Construct beam-to-gateway mapping with sequential switch (可調整切換間隔)
 t_start = datetime('20 Mar 2024 14:40:00', 'InputFormat', 'dd MMM yyyy HH:mm:ss');
 t_stop  = datetime('20 Mar 2024 14:48:00', 'InputFormat', 'dd MMM yyyy HH:mm:ss');
-time_slots = t_start:seconds(5):t_stop;
+time_slots = t_start:seconds(1):t_stop; % the value of time interval
 
-beam_gateway_table = table(); % 儲存結果
+beam_gateway_table = table();
+
+% 設定切換的初始時間與每個 beam 間的延遲
+fl_switch_start_time = datetime('20 Mar 2024 14:44:00', 'InputFormat', 'dd MMM yyyy HH:mm:ss');
+switch_gap = seconds(1);  % 每個 beam 間隔 ? 秒切換
 
 for satIdx = 1:1
     satName = Iridium_OMNet(satIdx);
+
     for beamIdx = 1:48
         beamName = "Sensor" + num2str(beamIdx);
 
-        % 計算該 beam 切換時間點
-        switch_time = datetime('20 Mar 2024 14:44:00', 'InputFormat', 'dd MMM yyyy HH:mm:ss') + seconds(5 * (beamIdx - 1));
+        % 計算該 beam 的實際切換時間
+        beam_switch_time = fl_switch_start_time + (beamIdx - 1) * switch_gap;
 
         for t = time_slots
-            % 初始皆為 Svalbard，超過 switch_time 的 beam 才切換
-            if t < switch_time
+            if t < beam_switch_time
                 gw = "Svalbard";
             else
                 gw = "Izhevsk";
@@ -369,13 +368,89 @@ for satIdx = 1:1
 
             beam_gateway_table = [beam_gateway_table;
                 table(satName, beamName, t, gw, ...
-                    'VariableNames', {'Satellite', 'Beam', 'Time', 'Gateway'})];
+                      'VariableNames', {'Satellite', 'Beam', 'Time', 'Gateway'})];
         end
     end
 end
 
+% 觀察指定 beam 的狀態（以 sat1_1 的 Sensor25 為例）
 rows = beam_gateway_table.Satellite == "sat1_1" & beam_gateway_table.Beam == "Sensor25";
 disp(beam_gateway_table(rows, :));
+
+%% Construct beam-to-gateway mapping with sequential switch starting when satellite can access two gs simultaneously
+t_start = datetime('20 Mar 2024 14:40:00', 'InputFormat', 'dd MMM yyyy HH:mm:ss');
+t_stop  = datetime('20 Mar 2024 14:48:00', 'InputFormat', 'dd MMM yyyy HH:mm:ss');
+time_slots = t_start:seconds(1):t_stop; % the value of time interval
+
+beam_gateway_table = table();
+
+% 設定切換的初始時間與每個 beam 間的延遲
+fl_switch_start_time = overlapStart(1);
+
+% 每個 beam 間隔 ? 秒切換
+switch_gap = seconds(5);  
+
+for satIdx = 1:1
+    satName = Iridium_OMNet(satIdx);
+
+    for beamIdx = 1:48
+        beamName = "Sensor" + num2str(beamIdx);
+
+        % 計算該 beam 的實際切換時間
+        beam_switch_time = fl_switch_start_time + (beamIdx - 1) * switch_gap;
+
+        for t = time_slots
+            if t < beam_switch_time
+                gw = "Svalbard";
+            else
+                gw = "Izhevsk";
+            end
+
+            beam_gateway_table = [beam_gateway_table;
+                table(satName, beamName, t, gw, ...
+                      'VariableNames', {'Satellite', 'Beam', 'Time', 'Gateway'})];
+        end
+    end
+end
+
+% 觀察指定 beam 的狀態（以 sat1_1 的 Sensor25 為例）
+rows = beam_gateway_table.Satellite == "sat1_1" & beam_gateway_table.Beam == "Sensor25";
+disp(beam_gateway_table(rows, :));
+
+%% Construct the table including UE beams and satellite in each time slot.
+
+ueName = "ue1";         % 可改成你實際建立的 UE 名稱
+UE_time_table = table(); % 每行記錄 UE 在某秒連接哪個 beam/gateway
+
+for t = time_slots
+    % 找出 UE 在這個時間 t 連到的 beam
+    access_row = UE_beam_access_sorted(UE_beam_access_sorted.StartTime <= t & UE_beam_access_sorted.StopTime >= t, :);
+
+    if ~isempty(access_row)
+        beam_id = access_row.Beam(1);  % 有時會同時有多筆，取第一筆即可
+        sat_id  = access_row.Satellite(1);
+    else
+        beam_id = "None";
+        sat_id  = "None";
+    end
+
+    % 找出該 beam 在此時間連到哪個 gateway
+    gw_row = beam_gateway_table(beam_gateway_table.Satellite == sat_id & ...
+                                beam_gateway_table.Beam == beam_id & ...
+                                beam_gateway_table.Time == t, :);
+
+    if ~isempty(gw_row)
+        gateway = gw_row.Gateway(1);
+    else
+        gateway = "None";
+    end
+
+    UE_time_table = [UE_time_table;
+        table(t, ueName, sat_id, beam_id, gateway, ...
+              'VariableNames', {'Time', 'UE', 'Satellite', 'Beam', 'Gateway'})];
+end
+
+disp(UE_time_table);
 
 %% obtain LLR from STK
 % 參考資料： https://blog.csdn.net/u011575168/article/details/80671283
