@@ -107,15 +107,12 @@ disp("✅ 地面站與仰角限制設定完成");
 
 %% Construct UE
 
-ue1 = sc.Children.New('eFacility', 'UE1');
-ue1.Position.AssignGeodetic(67.54, 34.31, 0);  % 北緯 70, 東經 40
+T = readtable('UE_location.txt', 'FileType', 'text', 'Delimiter', '\t');
 
-ue1.Graphics.LabelVisible = true;
-
-% 設定最小仰角 10 度
-elevation = ue1.AccessConstraints.AddConstraint('eCstrElevationAngle');
-elevation.EnableMin = 1;
-elevation.Min = 10;
+for i = 1:height(T)
+    create_ue(sc, T.UEName{i}, T.Latitude(i), T.Longitude(i));
+    disp(T.UEName{i} + " is ConStructed.");
+end
 
 %% Add 48 beams (Sensors) to each satellite
 
@@ -132,11 +129,19 @@ disp(overlapTable);
 
 %% Compute access between each beam and UE for all satellites
 
-ueName = "ue1";
-beamCount = 48;
-UE_beam_access_sorted = computeUEBeamAccess(root, sc, Iridium_OMNet, ueName, beamCount);
+UE_Beam_access_map = containers.Map();  % key: ue name, value: table
 
-disp(UE_beam_access_sorted);
+beamCount = 48;
+
+for i = 1:height(T)
+    UE_Beam_access = computeUEBeamAccess(root, sc, Iridium_OMNet, T.UEName{i}, beamCount);
+
+    UE_Beam_access_map(T.UEName{i}) = UE_Beam_access;
+
+    disp(T.UEName{i} + " is ConStructed.");
+    disp(UE_Beam_access);
+end
+
 
 %% Construct time slot and interval
 
@@ -165,17 +170,58 @@ disp(beam_gateway_table(rows, :));
 
 %% Construct the table including UE beams and satellite in each time slot
 
-ueName = "ue1";
+UE_time_table_map = containers.Map();  % key: ue name, value: table
 
-UE_time_table = constructUETimeTable(time_slots, ueName, UE_beam_access_sorted, beam_gateway_table);
+for i = 1:height(T)  % T 是你存 UE 經緯度的表格
+    ueName = T.UEName{i};
+    beam_access = UE_access_map(ueName);
+    UE_time_table = constructUETimeTable(time_slots, ueName, beam_access, beam_gateway_table);
+    UE_time_table_map(ueName) = UE_time_table;
+    disp(T.UEName{i} + " is ConStructed.");
+    disp(UE_time_table);
+end
 
-disp(UE_time_table);
 
 %% Count the number of Feeder link switch
 
-switch_count = countFLSwitchInterruptions(UE_time_table);
+% 儲存每個 UE 的中斷次數
+UE_switch_stats = table();
 
-disp("🚨 FL switch 導致的中斷次數為：" + switch_count);
+% 用來統計每種中斷次數出現的頻率
+switch_freq_map = containers.Map('KeyType', 'double', 'ValueType', 'double');
+
+for i = 1:height(T)  % T 是你存 UE 經緯度的表格
+    ueName = T.UEName{i};
+    [sw_count, beam_seq, switched_beams] = analyzeUEPathAndSwitches(UE_time_table_map(ueName));
+
+    % 儲存個別統計
+    UE_switch_stats = [UE_switch_stats;
+        table(string(ueName), sw_count, ...
+        'VariableNames', {'UE', 'SwitchCount'})];
+    % 累加次數統計
+    if isKey(switch_freq_map, sw_count)
+        switch_freq_map(sw_count) = switch_freq_map(sw_count) + 1;
+    else
+        switch_freq_map(sw_count) = 1;
+    end
+
+    disp(T.UEName{i} + " is done.")
+    disp("🚨 中斷次數：" + sw_count);
+    disp("📍 Beam 路徑：");
+    disp(beam_seq);
+    disp("⚡ FL switch 發生的 beam：");
+    disp(switched_beams);
+end
+
+% 將 switch_freq_map 轉成 table 方便看
+switch_counts = cell2mat(keys(switch_freq_map));
+frequencies = cell2mat(values(switch_freq_map));
+FL_switch_summary = table(switch_counts', frequencies', ...
+    'VariableNames', {'SwitchCount', 'NumUEs'});
+
+disp("📊 不同中斷次數的統計分佈：");
+disp(FL_switch_summary);
+
 
 %% obtain LLR from STK
 % 參考資料： https://blog.csdn.net/u011575168/article/details/80671283

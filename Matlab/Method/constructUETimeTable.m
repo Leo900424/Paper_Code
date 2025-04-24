@@ -26,7 +26,7 @@ function UE_time_table = constructUETimeTable(time_slots, ueName, UE_beam_table,
         end
 
         UE_time_table = [UE_time_table;
-            table(t, ueName, sat_id, beam_id, gateway, ...
+            table(t, string(ueName), sat_id, beam_id, gateway, ...
                 'VariableNames', {'Time', 'UE', 'Satellite', 'Beam', 'Gateway'})];
     end
 end
