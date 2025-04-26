@@ -158,7 +158,8 @@ strategy_inner_to_outer = [1:3, 4:12, 13:27, 28:48];  % 這是你可能關注的
 
 %% Construct beam-to-gateway mapping with sequential switch starting when satellite can access two gs simultaneously
 
-strategy = strategy_outer_to_inner;
+strategy = strategy_inner_to_outer;
+strategy_name = "strategy_inner_to_outer";
 switch_gap = seconds(5);
 beam_gateway_table = constructBeamGatewayTable(time_slots, Iridium_OMNet, overlapStart, strategy, switch_gap);
 
@@ -182,7 +183,7 @@ for i = 1:height(T)  % T 是你存 UE 經緯度的表格
 end
 
 
-%% Count the number of Feeder link switch
+%% Analyze the result of current strategy
 
 % 儲存每個 UE 的中斷次數
 UE_switch_stats = table();
@@ -196,8 +197,11 @@ for i = 1:height(T)  % T 是你存 UE 經緯度的表格
 
     % 儲存個別統計
     UE_switch_stats = [UE_switch_stats;
-        table(string(ueName), sw_count, ...
-        'VariableNames', {'UE', 'SwitchCount'})];
+    table(string(ueName), ...
+          strjoin(beam_seq, ' -> '), ...   % BeamPath 用 '->' 連起來
+          strjoin(switched_beams, ', '), ...% Switch的beam用逗號隔開
+          sw_count, ...
+          'VariableNames', {'UE', 'BeamPath', 'SwitchedBeams', 'SwitchCount'})];
     % 累加次數統計
     if isKey(switch_freq_map, sw_count)
         switch_freq_map(sw_count) = switch_freq_map(sw_count) + 1;
@@ -221,6 +225,19 @@ FL_switch_summary = table(switch_counts', frequencies', ...
 
 disp("📊 不同中斷次數的統計分佈：");
 disp(FL_switch_summary);
+
+%% Save the analysis as excel file
+
+% 自動設 Result 資料夾路徑
+result_dir = fullfile(pwd, 'Matlab_data', 'Result');
+
+% 如果資料夾不存在，自動建立
+if ~exist(result_dir, 'dir')
+    mkdir(result_dir);
+end
+
+% 儲存
+saveUESwitchSummary(UE_switch_stats, FL_switch_summary, strategy_name, result_dir);
 
 
 %% obtain LLR from STK
