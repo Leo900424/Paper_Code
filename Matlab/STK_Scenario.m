@@ -38,7 +38,7 @@ disp("---------------------- done");
 disp("設定單位與場景時間");
 sc = root.CurrentScenario;
 root.UnitPreferences.Item('DateFormat').SetCurrentUnit('UTCG');
-sc.SetTimePeriod('20 Mar 2024 00:00:00.000', '21 Mar 2024 00:00:00.000'); % modify
+sc.SetTimePeriod('20 Mar 2024 14:38:00', '20 Mar 2024 14:50:00'); % modify
 root.ExecuteCommand('Animate * Reset');
 root.UnitPreferences.SetCurrentUnit('Distance', 'km'); % modify
 root.UnitPreferences.SetCurrentUnit('Latitude', 'deg'); % modify
@@ -107,7 +107,7 @@ disp("✅ 地面站與仰角限制設定完成");
 
 %% Construct UE
 
-T = readtable('UE_location.txt', 'FileType', 'text', 'Delimiter', '\t');
+T = readtable('UE_location_500.txt', 'FileType', 'text', 'Delimiter', '\t');
 
 for i = 1:height(T)
     create_ue(sc, T.UEName{i}, T.Latitude(i), T.Longitude(i));
@@ -119,6 +119,11 @@ end
 addAllBeamsToSatellites(root, Iridium_OMNet, beam_config);
 
 disp("✨ Sensor 建立完成");
+
+%% clear all sensor on satellite
+
+clearOldSensors(root, Iridium_OMNet, 48);
+
 
 %% construct access between satellite and ground station
 
@@ -142,32 +147,47 @@ for i = 1:height(T)
     disp(UE_Beam_access);
 end
 
+disp(UE_Beam_access_map(T.UEName{1}));
 
 %% Construct time slot and interval
 
-t_start = datetime('20 Mar 2024 14:40:00', 'InputFormat', 'dd MMM yyyy HH:mm:ss');
-t_stop  = datetime('20 Mar 2024 14:48:00', 'InputFormat', 'dd MMM yyyy HH:mm:ss');
+t_start = datetime('20 Mar 2024 14:38:00', 'InputFormat', 'dd MMM yyyy HH:mm:ss');
+t_stop  = datetime('20 Mar 2024 14:50:00', 'InputFormat', 'dd MMM yyyy HH:mm:ss');
 time_slots = t_start:seconds(1):t_stop; % the value of time interval
 
 %% Develop different strategy of ordering the beam
 
-strategy_round_robin = 1:48;
-strategy_random       = randperm(48);
+beam_id_list = [16, 32, 48, 13:15, 29:31, 45:47, 8:12, 24:28, 40:44, 1:7, 17:23, 33:39];
+
+strategy_random = [27, 3, 23, 16, 31, 25, 40, 44, 39, 19, 5, 9, 37, 17, 33, 11, 38, 7, 4, 47, ...
+32, 35, 24, 15, 2, 48, 8, 21, 43, 1, 42, 10, 46, 12, 13, 14, 28, 6, 34, 29, 20, 45, 30, 41, 36, 18, 26, 22];
+strategy_random = beam_id_list(strategy_random);
+
 strategy_outer_to_inner = [28:48, 13:27, 4:12, 1:3];
+strategy_outer_to_inner = beam_id_list(strategy_outer_to_inner);
+
 strategy_inner_to_outer = [1:3, 4:12, 13:27, 28:48];  % 這是你可能關注的策略
+strategy_inner_to_outer = beam_id_list(strategy_inner_to_outer);
+
+strategy_mobility = [35:38, 34:-1:31, 39:43, 17:20, 16:-1:13, 21:24, 6:8, 9:11, 1:3, 5, 4, 12, 25:27, 30:-1:28, 44:48];
+strategy_mobility = beam_id_list(strategy_mobility);
+
+strategy_best = generateSimpleBestSwitchStrategy(UE_Beam_access_map, T);
+
+strategy_topo = generateTopoSortedStrategy(UE_Beam_access_map, T);
+
+disp(length(strategy_topo));
 
 %% Construct beam-to-gateway mapping with sequential switch starting when satellite can access two gs simultaneously
 
-strategy = strategy_inner_to_outer;
-strategy_name = "strategy_inner_to_outer";
+strategy = strategy_best;
+strategy_name = "strategy_best";
 switch_gap = seconds(5);
 beam_gateway_table = constructBeamGatewayTable(time_slots, Iridium_OMNet, overlapStart, strategy, switch_gap);
-
 
 % 觀察指定 beam 的狀態（以 sat1_1 的 Sensor25 為例）
 rows = beam_gateway_table.Satellite == "sat1_1" & beam_gateway_table.Beam == "Sensor25";
 disp(beam_gateway_table(rows, :));
-
 
 %% Construct the table including UE beams and satellite in each time slot
 
@@ -175,7 +195,7 @@ UE_time_table_map = containers.Map();  % key: ue name, value: table
 
 for i = 1:height(T)  % T 是你存 UE 經緯度的表格
     ueName = T.UEName{i};
-    beam_access = UE_access_map(ueName);
+    beam_access = UE_Beam_access_map(ueName);
     UE_time_table = constructUETimeTable(time_slots, ueName, beam_access, beam_gateway_table);
     UE_time_table_map(ueName) = UE_time_table;
     disp(T.UEName{i} + " is ConStructed.");
@@ -193,6 +213,8 @@ switch_freq_map = containers.Map('KeyType', 'double', 'ValueType', 'double');
 
 for i = 1:height(T)  % T 是你存 UE 經緯度的表格
     ueName = T.UEName{i};
+    disp(ueName);
+    disp(UE_time_table_map(ueName));
     [sw_count, beam_seq, switched_beams] = analyzeUEPathAndSwitches(UE_time_table_map(ueName));
 
     % 儲存個別統計
@@ -210,11 +232,6 @@ for i = 1:height(T)  % T 是你存 UE 經緯度的表格
     end
 
     disp(T.UEName{i} + " is done.")
-    disp("🚨 中斷次數：" + sw_count);
-    disp("📍 Beam 路徑：");
-    disp(beam_seq);
-    disp("⚡ FL switch 發生的 beam：");
-    disp(switched_beams);
 end
 
 % 將 switch_freq_map 轉成 table 方便看
@@ -237,7 +254,7 @@ if ~exist(result_dir, 'dir')
 end
 
 % 儲存
-saveUESwitchSummary(UE_switch_stats, FL_switch_summary, strategy_name, result_dir);
+saveUESwitchSummary(UE_switch_stats, FL_switch_summary, strategy_name, result_dir, strategy, overlapStart);
 
 
 %% obtain LLR from STK

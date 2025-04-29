@@ -6,6 +6,10 @@ function addAllBeamsToSatellites(root, Iridium_OMNet, beam_config)
         beam_count = 48;
         cone_half_angle = 14; % 錐角角度（度）
     
+        % Correct beam ID distribution
+
+        beam_id_list = [16, 32, 48, 13:15, 29:31, 45:47, 8:12, 24:28, 40:44, 1:7, 17:23, 33:39];
+
         % 設定 4 group 對應透明度
         beam_alpha = zeros(48, 1);
         beam_alpha(1:3) = 0;        % Group 1：最不透明（紅）
@@ -18,7 +22,7 @@ function addAllBeamsToSatellites(root, Iridium_OMNet, beam_config)
             sat = root.GetObjectFromPath("/Satellite/" + sat_name);
             
             for j = 1:beam_count
-                beam_name = "Sensor" + num2str(j);
+                beam_name = "Sensor" + num2str(beam_id_list(j));
                 sensor = sat.Children.New('eSensor', beam_name);
     
                 % 設定 Pattern 為 Simple Conic
