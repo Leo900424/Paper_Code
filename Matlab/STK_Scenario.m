@@ -147,19 +147,40 @@ for i = 1:height(T)
     disp(UE_Beam_access);
 end
 
+% Save UE_Beam_access_map in order not to run it again.
 save('UE_Beam_access_map.mat', 'UE_Beam_access_map');
 
 load('UE_Beam_access_map.mat', 'UE_Beam_access_map');
+disp(UE_Beam_access_map(T.UEName{1}));
 
-UE_Beam_access_map1 = UE_Beam_access_map;
+%% Choose the beam path for each UE
 
-disp(UE_Beam_access_map(T.UEName{500}));
+UE_beam_path_map = containers.Map();  % key: ue name, value: simplified beam path table
+
+for i = 1:height(T)
+    ueName = T.UEName{i};
+   
+    rawAccessTable = UE_Beam_access_map(ueName);
+
+    % 呼叫簡化函式，取得不重疊的 beam path
+    simplifiedTable = simplifyUEBeamAccess(rawAccessTable, sc, ueName);
+
+    % 儲存回 map
+    UE_beam_path_map(ueName) = simplifiedTable;
+
+    disp("✅ Beam path 已選定：" + ueName);
+end
+
+disp(UE_beam_path_map(T.UEName{1}));
 
 %% Construct time slot and interval
 
-t_start = datetime('20 Mar 2024 14:38:00', 'InputFormat', 'dd MMM yyyy HH:mm:ss');
-t_stop  = datetime('20 Mar 2024 14:50:00', 'InputFormat', 'dd MMM yyyy HH:mm:ss');
-time_slots = t_start:seconds(1):t_stop; % the value of time interval
+time_slot_value = 1;
+
+t_start1 = datetime(sc.StartTime, 'InputFormat', 'dd MMM yyyy HH:mm:ss.SSS');
+t_stop1  = datetime(sc.StopTime, 'InputFormat', 'dd MMM yyyy HH:mm:ss.SSS');
+
+time_slots = t_start:seconds(time_slot_value):t_stop; % the value of time interval
 
 %% Develop different strategy of ordering the beam
 
