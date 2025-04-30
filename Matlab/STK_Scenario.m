@@ -147,7 +147,13 @@ for i = 1:height(T)
     disp(UE_Beam_access);
 end
 
-disp(UE_Beam_access_map(T.UEName{1}));
+save('UE_Beam_access_map.mat', 'UE_Beam_access_map');
+
+load('UE_Beam_access_map.mat', 'UE_Beam_access_map');
+
+UE_Beam_access_map1 = UE_Beam_access_map;
+
+disp(UE_Beam_access_map(T.UEName{500}));
 
 %% Construct time slot and interval
 
