@@ -177,10 +177,57 @@ disp(UE_beam_path_map(T.UEName{1}));
 
 time_slot_value = 1;
 
-t_start1 = datetime(sc.StartTime, 'InputFormat', 'dd MMM yyyy HH:mm:ss.SSS');
-t_stop1  = datetime(sc.StopTime, 'InputFormat', 'dd MMM yyyy HH:mm:ss.SSS');
+t_start = datetime(sc.StartTime, 'InputFormat', 'dd MMM yyyy HH:mm:ss.SSS');
+t_stop = datetime(sc.StopTime, 'InputFormat', 'dd MMM yyyy HH:mm:ss.SSS');
 
 time_slots = t_start:seconds(time_slot_value):t_stop; % the value of time interval
+
+%% Compute the number of UE in each beam and each time slot
+
+% 初始化 beamTimeUECount
+beamTimeUECount = containers.Map('KeyType', 'char', 'ValueType', 'double');
+
+% 針對每個 UE
+for i = 1:height(T)
+    ueName = T.UEName{i};
+    ueAccess = UE_beam_path_map(ueName);
+    ueAccess = sortrows(ueAccess, 'StartTime');
+    
+    % 對每個 access 區段
+    for j = 1:height(ueAccess)
+        beam = ueAccess.Beam{j};
+        startTime = floor(seconds(ueAccess.StartTime(j) - overlapStart(1)));
+        endTime = ceil(seconds(ueAccess.StopTime(j) - overlapStart(1)));
+        
+        % 每秒累計一次
+        timeSlots = startTime:endTime;
+        for t = timeSlots
+            key = strcat(beam, '_', num2str(t));
+            if isKey(beamTimeUECount, key)
+                beamTimeUECount(key) = beamTimeUECount(key) + 1;
+            else
+                beamTimeUECount(key) = 1;
+            end
+        end
+    end
+end
+
+% 過濾 beamTimeUECount，只保留 0~240 秒的資料
+allKeys = keys(beamTimeUECount);
+filteredMap = containers.Map('KeyType', 'char', 'ValueType', 'double');
+
+for i = 1:length(allKeys)
+    key = allKeys{i};
+    parts = split(key, '_');
+    t = str2double(parts{2});
+    
+    if t >= 0 && t <= 240
+        filteredMap(key) = beamTimeUECount(key);
+    end
+end
+
+% 用 filteredMap 取代原本的 map
+beamTimeUECount = filteredMap;
 
 %% Develop different strategy of ordering the beam
 
@@ -199,16 +246,22 @@ strategy_inner_to_outer = beam_id_list(strategy_inner_to_outer);
 strategy_mobility = [35:38, 34:-1:31, 39:43, 17:20, 16:-1:13, 21:24, 6:8, 9:11, 1:3, 5, 4, 12, 25:27, 30:-1:28, 44:48];
 strategy_mobility = beam_id_list(strategy_mobility);
 
-strategy_best = generateSimpleBestSwitchStrategy(UE_Beam_access_map, T);
+strategy_best = generateSimpleBestSwitchStrategy(UE_beam_path_map, T);
 
-strategy_topo = generateTopoSortedStrategy(UE_Beam_access_map, T);
+strategy_topo = generateTopoSortedStrategy(UE_beam_path_map, T);
 
-disp(length(strategy_topo));
+strategy_topo1 = generateTopoSortedStrategyWithCycleRemoval(UE_Beam_access_map, T);
+
+disp(length(strategy_topo1));
+
+
+disp(strategy_topo);
+disp(strategy_topo1);
 
 %% Construct beam-to-gateway mapping with sequential switch starting when satellite can access two gs simultaneously
 
-strategy = strategy_best;
-strategy_name = "strategy_best";
+strategy = strategy_topo1;
+strategy_name = "strategy_topo1";
 switch_gap = seconds(5);
 beam_gateway_table = constructBeamGatewayTable(time_slots, Iridium_OMNet, overlapStart, strategy, switch_gap);
 
@@ -222,7 +275,7 @@ UE_time_table_map = containers.Map();  % key: ue name, value: table
 
 for i = 1:height(T)  % T 是你存 UE 經緯度的表格
     ueName = T.UEName{i};
-    beam_access = UE_Beam_access_map(ueName);
+    beam_access = UE_beam_path_map(ueName);
     UE_time_table = constructUETimeTable(time_slots, ueName, beam_access, beam_gateway_table);
     UE_time_table_map(ueName) = UE_time_table;
     disp(T.UEName{i} + " is ConStructed.");

@@ -4,30 +4,26 @@ function UE_beam_access_clean = simplifyUEBeamAccess(UE_beam_access_raw, sc, ueN
     maxTime     = datetime(sc.StopTime,  'InputFormat', 'dd MMM yyyy HH:mm:ss.SSS');
 
     while currentTime < maxTime
-        % 找出可連接的 beam，且 StartTime <= currentTime，StopTime > currentTime
+        % 找出在 currentTime 能 access 的所有 Beam
         candidateRows = UE_beam_access_raw( ...
             UE_beam_access_raw.StartTime <= currentTime & UE_beam_access_raw.StopTime > currentTime, :);
 
         if isempty(candidateRows)
-            % 沒有 beam，填入 None 段直到下一段 beam 開始
+            % 找下一個可以連線的時間點，直接跳過無連線段
             nextStarts = UE_beam_access_raw.StartTime(UE_beam_access_raw.StartTime > currentTime);
-            nextCandidateStart = min([nextStarts; maxTime]);
-
-            UE_beam_access_clean = [UE_beam_access_clean; ...
-                table("None", "None", string(ueName), currentTime, nextCandidateStart, ...
-                'VariableNames', {'Satellite', 'Beam', 'UE', 'StartTime', 'StopTime'})];
-
-            currentTime = nextCandidateStart;
+            if isempty(nextStarts)
+                break;  % 沒有後續可連接的 beam，結束
+            else
+                currentTime = min(nextStarts);
+            end
         else
-            % 選擇 StopTime 最早，且 StartTime <= currentTime 的 beam
+            % 選擇 StopTime 最早的 beam，並修正起始時間
             [~, idx] = min(candidateRows.StopTime);
-            selected = candidateRows(idx, :);
+            bestRow = candidateRows(idx, :);
+            bestRow.StartTime = currentTime;
 
-            % 修正 StartTime 為 currentTime，避免重疊
-            selected.StartTime = currentTime;
-
-            UE_beam_access_clean = [UE_beam_access_clean; selected];
-            currentTime = selected.StopTime;
+            UE_beam_access_clean = [UE_beam_access_clean; bestRow];
+            currentTime = bestRow.StopTime;
         end
     end
 
