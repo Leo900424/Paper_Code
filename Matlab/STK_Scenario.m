@@ -107,7 +107,7 @@ disp("✅ 地面站與仰角限制設定完成");
 
 %% Construct UE
 
-T = readtable('UE_location_500.txt', 'FileType', 'text', 'Delimiter', '\t');
+T = readtable('UE_location_2000.txt', 'FileType', 'text', 'Delimiter', '\t');
 
 for i = 1:height(T)
     create_ue(sc, T.UEName{i}, T.Latitude(i), T.Longitude(i));
@@ -151,7 +151,7 @@ end
 save('UE_Beam_access_map.mat', 'UE_Beam_access_map');
 
 load('UE_Beam_access_map.mat', 'UE_Beam_access_map');
-disp(UE_Beam_access_map(T.UEName{1}));
+disp(UE_Beam_access_map(T.UEName{1001}));
 
 %% Choose the beam path for each UE
 
@@ -278,8 +278,8 @@ for i = 1:height(T)  % T 是你存 UE 經緯度的表格
     beam_access = UE_beam_path_map(ueName);
     UE_time_table = constructUETimeTable(time_slots, ueName, beam_access, beam_gateway_table);
     UE_time_table_map(ueName) = UE_time_table;
-    disp(T.UEName{i} + " is ConStructed.");
     disp(UE_time_table);
+    disp(T.UEName{i} + " is ConStructed.");
 end
 
 
