@@ -107,7 +107,7 @@ disp("✅ 地面站與仰角限制設定完成");
 
 %% Construct UE
 
-T = readtable('UE_location_2000.txt', 'FileType', 'text', 'Delimiter', '\t');
+T = readtable('UE_location_5000.txt', 'FileType', 'text', 'Delimiter', '\t');
 
 for i = 1:height(T)
     create_ue(sc, T.UEName{i}, T.Latitude(i), T.Longitude(i));
@@ -143,15 +143,15 @@ for i = 1:height(T)
 
     UE_Beam_access_map(T.UEName{i}) = UE_Beam_access;
 
-    disp(T.UEName{i} + " is ConStructed.");
     disp(UE_Beam_access);
+    disp(T.UEName{i} + " is ConStructed.");
 end
 
 % Save UE_Beam_access_map in order not to run it again.
 save('UE_Beam_access_map.mat', 'UE_Beam_access_map');
 
 load('UE_Beam_access_map.mat', 'UE_Beam_access_map');
-disp(UE_Beam_access_map(T.UEName{1001}));
+disp(UE_Beam_access_map(T.UEName{4530}));
 
 %% Choose the beam path for each UE
 
@@ -260,8 +260,8 @@ disp(strategy_topo1);
 
 %% Construct beam-to-gateway mapping with sequential switch starting when satellite can access two gs simultaneously
 
-strategy = strategy_topo1;
-strategy_name = "strategy_topo1";
+strategy = strategy_outer_to_inner;
+strategy_name = "strategy_outer_to_inner";
 switch_gap = seconds(5);
 beam_gateway_table = constructBeamGatewayTable(time_slots, Iridium_OMNet, overlapStart, strategy, switch_gap);
 
