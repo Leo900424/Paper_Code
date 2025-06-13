@@ -138,7 +138,8 @@ UE_Beam_access_map = containers.Map();  % key: ue name, value: table
 
 beamCount = 48;
 
-for i = 1:height(T)
+for i = 4539:height(T)
+    disp(T.UEName{i})
     UE_Beam_access = computeUEBeamAccess(root, sc, Iridium_OMNet, T.UEName{i}, beamCount);
 
     UE_Beam_access_map(T.UEName{i}) = UE_Beam_access;
@@ -151,7 +152,6 @@ end
 save('UE_Beam_access_map.mat', 'UE_Beam_access_map');
 
 load('UE_Beam_access_map.mat', 'UE_Beam_access_map');
-disp(UE_Beam_access_map(T.UEName{4530}));
 
 %% Choose the beam path for each UE
 
@@ -256,12 +256,12 @@ disp(length(strategy_topo1));
 
 
 disp(strategy_topo);
-disp(strategy_topo1);
+disp(length(strategy_topo1));
 
 %% Construct beam-to-gateway mapping with sequential switch starting when satellite can access two gs simultaneously
 
-strategy = strategy_outer_to_inner;
-strategy_name = "strategy_outer_to_inner";
+strategy = strategy_random;
+strategy_name = "strategy_random";
 switch_gap = seconds(5);
 beam_gateway_table = constructBeamGatewayTable(time_slots, Iridium_OMNet, overlapStart, strategy, switch_gap);
 
