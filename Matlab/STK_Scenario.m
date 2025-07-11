@@ -11,6 +11,8 @@ disp("---------------------- done");
 %% 初始化 衛星資訊
 addpath(fullfile(pwd, 'Matlab', 'Method'));
 addpath(fullfile(pwd, 'Matlab'));
+addpath(fullfile(pwd, 'ITRI_data'));
+
 global Iridium Plane Iridium_OMNet beam_config;
 disp("初始化");
 Satellite_Name();
@@ -248,20 +250,20 @@ strategy_mobility = beam_id_list(strategy_mobility);
 
 strategy_best = generateSimpleBestSwitchStrategy(UE_beam_path_map, T);
 
-strategy_topo = generateTopoSortedStrategy(UE_beam_path_map, T);
+strategy_topo = generateTopoSortedStrategyWithCycleRemoval(UE_beam_path_map, T);
 
-strategy_topo1 = generateTopoSortedStrategyWithCycleRemoval(UE_Beam_access_map, T);
+strategy_topo_ITRI = generateTopoSortedStrategyFromExcel('ITRI_data');
 
 disp(length(strategy_topo1));
 
 
-disp(strategy_topo);
-disp(length(strategy_topo1));
+disp(strategy_topo_ITRI);
+disp(length(strategy_topo_ITRI));
 
 %% Construct beam-to-gateway mapping with sequential switch starting when satellite can access two gs simultaneously
 
-strategy = strategy_random;
-strategy_name = "strategy_random";
+strategy = strategy_topo_ITRI;
+strategy_name = "strategy_topo_ITRI";
 switch_gap = seconds(5);
 beam_gateway_table = constructBeamGatewayTable(time_slots, Iridium_OMNet, overlapStart, strategy, switch_gap);
 
