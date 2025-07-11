@@ -254,11 +254,13 @@ strategy_topo = generateTopoSortedStrategyWithCycleRemoval(UE_beam_path_map, T);
 
 strategy_topo_ITRI = generateTopoSortedStrategyFromExcel('ITRI_data');
 
+strategy_topo_ITRI1 = generateTopoSortedStrategyFromExcel('ITRI_data');
+
 disp(length(strategy_topo1));
 
-
-disp(strategy_topo_ITRI);
-disp(length(strategy_topo_ITRI));
+disp(strategy_topo_ITRI1 == strategy_topo_ITRI);
+disp(strategy_topo_ITRI1);
+disp(length(strategy_topo_ITRI1));
 
 %% Construct beam-to-gateway mapping with sequential switch starting when satellite can access two gs simultaneously
 
@@ -273,17 +275,23 @@ disp(beam_gateway_table(rows, :));
 
 %% Construct the table including UE beams and satellite in each time slot
 
-UE_time_table_map = containers.Map();  % key: ue name, value: table
+n = height(T);
+UE_names = T.UEName;
+UE_keys = cell(n, 1);       % 用來存每個 UE 的 name
+UE_values = cell(n, 1);     % 用來存對應的 time_table
 
-for i = 1:height(T)  % T 是你存 UE 經緯度的表格
-    ueName = T.UEName{i};
+parfor i = 1:n
+    ueName = UE_names{i};
     beam_access = UE_beam_path_map(ueName);
     UE_time_table = constructUETimeTable(time_slots, ueName, beam_access, beam_gateway_table);
-    UE_time_table_map(ueName) = UE_time_table;
-    disp(UE_time_table);
-    disp(T.UEName{i} + " is ConStructed.");
+
+    UE_keys{i} = ueName;
+    UE_values{i} = UE_time_table;
+
+    disp(ueName + " is Constructed.");
 end
 
+UE_time_table_map = containers.Map(UE_keys, UE_values);
 
 %% Analyze the result of current strategy
 
