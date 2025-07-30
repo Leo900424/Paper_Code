@@ -33,6 +33,7 @@ disp("---------------------- done");
 %% STL 關閉後用載入的方式開啟
 disp("載入舊場景");
 root.LoadScenario('C:\Users\user\Desktop\Paper_Code\STK\Scenario20240217\Scenario.sc');
+sc = root.CurrentScenario;
 disp("---------------------- done");
 
 
@@ -248,24 +249,24 @@ strategy_inner_to_outer = beam_id_list(strategy_inner_to_outer);
 strategy_mobility = [35:38, 34:-1:31, 39:43, 17:20, 16:-1:13, 21:24, 6:8, 9:11, 1:3, 5, 4, 12, 25:27, 30:-1:28, 44:48];
 strategy_mobility = beam_id_list(strategy_mobility);
 
-strategy_best = generateSimpleBestSwitchStrategy(UE_beam_path_map, T);
+% strategy_best = generateSimpleBestSwitchStrategy(UE_beam_path_map, T);
 
-strategy_topo = generateTopoSortedStrategyWithCycleRemoval(UE_beam_path_map, T);
+strategy_topoSorted = generateTopoSortedStrategyWithCycleRemoval(UE_beam_path_map, T);
 
-strategy_topo_ITRI = generateTopoSortedStrategyFromExcel('ITRI_data');
+strategy_topoSorted_ITRI = generateTopoSortedStrategyFromExcel('ITRI_data');
 
-strategy_topo_ITRI1 = generateTopoSortedStrategyFromExcel('ITRI_data');
+strategy_topoSorted_ITRI1 = generateTopoSortedStrategyFromExcel('ITRI_data');
 
 disp(length(strategy_topo1));
 
-disp(strategy_topo_ITRI1 == strategy_topo_ITRI);
-disp(strategy_topo_ITRI1);
-disp(length(strategy_topo_ITRI1));
+disp(strategy_topoSorted_ITRI1 == strategy_toposorted_ITRI);
+disp(strategy_topoSorted_ITRI);
+disp(length(strategy_topoSorted_ITRI));
 
 %% Construct beam-to-gateway mapping with sequential switch starting when satellite can access two gs simultaneously
 
-strategy = strategy_topo_ITRI;
-strategy_name = "strategy_topo_ITRI";
+strategy = strategy_topoSorted_ITRI;
+strategy_name = "strategy_topoSorted_ITRI";
 switch_gap = seconds(5);
 beam_gateway_table = constructBeamGatewayTable(time_slots, Iridium_OMNet, overlapStart, strategy, switch_gap);
 
@@ -295,36 +296,47 @@ UE_time_table_map = containers.Map(UE_keys, UE_values);
 
 %% Analyze the result of current strategy
 
-% 儲存每個 UE 的中斷次數
 UE_switch_stats = table();
-
-% 用來統計每種中斷次數出現的頻率
 switch_freq_map = containers.Map('KeyType', 'double', 'ValueType', 'double');
 
-for i = 1:height(T)  % T 是你存 UE 經緯度的表格
+for i = 1:height(T)
     ueName = T.UEName{i};
     disp(ueName);
     disp(UE_time_table_map(ueName));
-    [sw_count, beam_seq, switched_beams] = analyzeUEPathAndSwitches(UE_time_table_map(ueName));
 
-    % 儲存個別統計
-    UE_switch_stats = [UE_switch_stats;
-    table(string(ueName), ...
-          strjoin(beam_seq, ' -> '), ...   % BeamPath 用 '->' 連起來
-          strjoin(switched_beams, ', '), ...% Switch的beam用逗號隔開
-          sw_count, ...
-          'VariableNames', {'UE', 'BeamPath', 'SwitchedBeams', 'SwitchCount'})];
-    % 累加次數統計
+    [sw_count, beam_seq, switched_beams, ...
+     beam_count, norm_flsi, consec_flsi, ...
+     trans_count, consec_flsi_ratio] = ...
+        analyzeUEPathAndSwitches(UE_time_table_map(ueName));
+
+    % 新增完整欄位
+    new_row = table(...
+        string(ueName), ...
+        strjoin(beam_seq, ' -> '), ...
+        strjoin(switched_beams, ', '), ...
+        sw_count, ...
+        beam_count, ...
+        norm_flsi, ...
+        consec_flsi, ...
+        trans_count, ...
+        consec_flsi_ratio, ...
+        'VariableNames', {'UEName', 'BeamPath', 'SwitchedBeams', ...
+                          'SwitchCount', 'BeamCount', 'NormalizedFLSI', ...
+                          'ConsecFLSICount', 'TransitionCount', 'ConsecutiveFLSIRatio'});
+
+    UE_switch_stats = [UE_switch_stats; new_row];
+
+    % 統計 SwitchCount
     if isKey(switch_freq_map, sw_count)
         switch_freq_map(sw_count) = switch_freq_map(sw_count) + 1;
     else
         switch_freq_map(sw_count) = 1;
     end
 
-    disp(T.UEName{i} + " is done.")
+    disp(ueName + " is done.")
 end
 
-% 將 switch_freq_map 轉成 table 方便看
+% 將 switch_freq_map 轉為 table
 switch_counts = cell2mat(keys(switch_freq_map));
 frequencies = cell2mat(values(switch_freq_map));
 FL_switch_summary = table(switch_counts', frequencies', ...
