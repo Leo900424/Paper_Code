@@ -63,20 +63,20 @@ def main(input_folder, output_pdf):
             drawstyle='steps-post'
         )
 
-    plt.xlabel("Normalized FLSI", fontsize=16, fontweight='bold')
-    plt.ylabel("CDF", fontsize=16, fontweight='bold')
+    plt.xlabel("Normalized FLSI", fontsize=10, fontweight='bold')
+    plt.ylabel("CDF", fontsize=10, fontweight='bold')
     # plt.title("CDF Comparison of Normalized FLSI", fontsize=28, fontweight='bold')
-    plt.xticks(fontsize=16)
-    plt.yticks(fontsize=16)
+    plt.xticks(fontsize=10)
+    plt.yticks(fontsize=10)
     plt.grid(True)
     plt.xlim(0, 0.6)
     plt.ylim(0, 1.0)
     plt.legend(
-        fontsize=12,
+        fontsize=7,
         loc='center left',
         bbox_to_anchor=(1, 0.5),
         title="Strategies",
-        title_fontsize=13,
+        title_fontsize=9,
         frameon=False
     )
     plt.tight_layout()
@@ -141,17 +141,23 @@ def main(input_folder, output_pdf):
         for j, val in enumerate(values):
             if count >= 2:
                 xpos = x[j] + i * width
-                ax.text(xpos, val + 5, str(val), ha='center', va='bottom',
+                ax.text(xpos + 0.005, val + 5, str(val), ha='center', va='bottom',
                         fontsize=8, rotation=0)
 
     # 美化設定
     ax.set_xticks(x + width * (len(flsi_df.columns) - 1) / 2)
     ax.set_xticklabels(flsi_df.index)
-    ax.set_xlabel("Strategy", fontsize=16, fontweight='bold')
-    ax.set_ylabel("Number of UEs", fontsize=16, fontweight='bold')
+    ax.set_xlabel("Strategy", fontsize=10, fontweight='bold')
+    ax.set_ylabel("Number of UEs", fontsize=10, fontweight='bold')
     # ax.set_title("UE Distribution by FLSI Count per Strategy", fontsize=16, fontweight='bold')
-    ax.tick_params(axis='both', labelsize=15)  # ✅ 改刻度字體
-    ax.legend(title="FLSI Count", fontsize=12)
+    ax.tick_params(axis='both', labelsize=10)  # ✅ 改刻度字體
+    legend = ax.legend(
+        title="FLSI Count",
+        fontsize=5,              # 圖例內容字體大小
+        title_fontsize=8,        # 圖例標題字體大小
+        prop={'weight': 'regular'}
+    )
+    legend.get_title().set_weight('bold')  # 標題粗體
     ax.grid(True, axis='y')
     plt.tight_layout()
 
@@ -187,19 +193,19 @@ def main(input_folder, output_pdf):
         for j, val in enumerate(values):
             if count >= 1:
                 xpos = x[j] + i * width
-                ax.text(xpos, val + 5, str(val), ha='center', va='bottom',
+                ax.text(xpos + 0.005, val + 5, str(val), ha='center', va='bottom',
                         fontsize=8, rotation=0)
 
     ax.set_xticks(x + width * (len(consec_flsi_df.columns) - 1) / 2)
     ax.set_xticklabels(consec_flsi_df.index)
-    ax.set_xlabel("Strategy", fontsize=16, fontweight='bold')
-    ax.set_ylabel("Number of UEs", fontsize=16, fontweight='bold')
+    ax.set_xlabel("Strategy", fontsize=10, fontweight='bold')
+    ax.set_ylabel("Number of UEs", fontsize=10, fontweight='bold')
     # ax.set_title("UE Distribution by ConFLSI Count", fontsize=16, fontweight='bold')
-    ax.tick_params(axis='both', labelsize=15)
+    ax.tick_params(axis='both', labelsize=10)
     ax.legend(
         title="ConFLSI Count",
-        title_fontsize=10,
-        fontsize=9,
+        title_fontsize=9,
+        fontsize=7,
         loc='upper right',
         frameon=False,
         markerscale=0.8,
@@ -250,13 +256,13 @@ def analyze_itri_versions(input_folder, output_prefix="itri_topoSorted"):
         cdf = np.arange(1, len(values_sorted) + 1) / len(values_sorted)
         plt.plot(values_sorted, cdf, label=version, linewidth=2.5, drawstyle='steps-post')
 
-    plt.xlabel("Normalized FLSI", fontsize=20, fontweight='bold')
-    plt.ylabel("CDF", fontsize=20, fontweight='bold')
+    plt.xlabel("Normalized FLSI", fontsize=10, fontweight='bold')
+    plt.ylabel("CDF", fontsize=10, fontweight='bold')
     # plt.title("TopoSorted - Normalized FLSI CDF (ITRI Traces)", fontsize=24, fontweight='bold')
     plt.xticks(fontsize=20)
     plt.yticks(fontsize=20)
     plt.grid(True)
-    plt.legend(title="ITRI Version", fontsize=14)
+    plt.legend(title="ITRI Version", fontsize=10)
     plt.tight_layout()
     cdf_path = os.path.join(input_folder, f"{output_prefix}_cdf.pdf")
     plt.savefig(cdf_path)
@@ -292,16 +298,22 @@ def analyze_itri_versions(input_folder, output_prefix="itri_topoSorted"):
         for j, val in enumerate(values):
             if count >= 2:
                 xpos = x[j] + i * width
-                ax.text(xpos, val + 5, str(val), ha='center', va='bottom',
+                ax.text(xpos + 0.005, val + 5, str(val), ha='center', va='bottom',
                         fontsize=8, rotation=0)
 
     ax.set_xticks(x + width * (len(flsi_df.columns) - 1) / 2)
     ax.set_xticklabels(flsi_df.index)
-    ax.set_xlabel("ITRI Version", fontsize=16, fontweight='bold')
-    ax.set_ylabel("Number of UEs", fontsize=16, fontweight='bold')
+    ax.set_xlabel("ITRI Version", fontsize=10, fontweight='bold')
+    ax.set_ylabel("Number of UEs", fontsize=10, fontweight='bold')
     # ax.set_title("TopoSorted - UE Distribution by FLSI Count", fontsize=16, fontweight='bold')
-    ax.tick_params(axis='both', labelsize=15)
-    ax.legend(title="FLSI Count", fontsize=12)
+    ax.tick_params(axis='both', labelsize=10)  # ✅ 改刻度字體
+    legend = ax.legend(
+        title="FLSI Count",
+        fontsize=5,              # 圖例內容字體大小
+        title_fontsize=8,        # 圖例標題字體大小
+        prop={'weight': 'regular'}
+    )
+    legend.get_title().set_weight('bold')  # 標題粗體
     ax.grid(True, axis='y')
     plt.tight_layout()
     bar_path = os.path.join(input_folder, f"{output_prefix}_flsi_bar.pdf")
@@ -334,19 +346,19 @@ def analyze_itri_versions(input_folder, output_prefix="itri_topoSorted"):
         for j, val in enumerate(values):
             if count >= 1:
                 xpos = x[j] + i * width
-                ax.text(xpos, val + 5, str(val), ha='center', va='bottom',
+                ax.text(xpos +  0.005, val + 5, str(val), ha='center', va='bottom',
                         fontsize=8, rotation=0)
 
     ax.set_xticks(x + width * (len(consec_df.columns) - 1) / 2)
     ax.set_xticklabels(consec_df.index)
-    ax.set_xlabel("ITRI Version", fontsize=16, fontweight='bold')
-    ax.set_ylabel("Number of UEs", fontsize=16, fontweight='bold')
+    ax.set_xlabel("ITRI Version", fontsize=10, fontweight='bold')
+    ax.set_ylabel("Number of UEs", fontsize=10, fontweight='bold')
     # ax.set_title("UE Distribution by ConFLSI Count", fontsize=16, fontweight='bold')
-    ax.tick_params(axis='both', labelsize=15)
+    ax.tick_params(axis='both', labelsize=10)
     ax.legend(
         title="ConFLSI Count",
-        title_fontsize=10,
-        fontsize=9,
+        title_fontsize=9,
+        fontsize=7,
         loc='upper right',
         frameon=False,
         markerscale=0.8,

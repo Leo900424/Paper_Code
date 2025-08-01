@@ -301,8 +301,8 @@ switch_freq_map = containers.Map('KeyType', 'double', 'ValueType', 'double');
 
 for i = 1:height(T)
     ueName = T.UEName{i};
-    disp(ueName);
-    disp(UE_time_table_map(ueName));
+    % disp(ueName);
+    % disp(UE_time_table_map(ueName));
 
     [sw_count, beam_seq, switched_beams, ...
      beam_count, norm_flsi, consec_flsi, ...
@@ -333,7 +333,7 @@ for i = 1:height(T)
         switch_freq_map(sw_count) = 1;
     end
 
-    disp(ueName + " is done.")
+    % disp(ueName + " is done.")
 end
 
 % 將 switch_freq_map 轉為 table
