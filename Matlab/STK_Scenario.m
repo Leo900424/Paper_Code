@@ -265,8 +265,8 @@ disp(length(strategy_topoSorted_ITRI));
 
 %% Construct beam-to-gateway mapping with sequential switch starting when satellite can access two gs simultaneously
 
-strategy = strategy_topoSorted_ITRI;
-strategy_name = "strategy_topoSorted_ITRI";
+strategy = strategy_random;
+strategy_name = "strategy_random";
 switch_gap = seconds(5);
 beam_gateway_table = constructBeamGatewayTable(time_slots, Iridium_OMNet, overlapStart, strategy, switch_gap);
 

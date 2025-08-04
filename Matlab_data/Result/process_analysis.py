@@ -44,7 +44,7 @@ def main(input_folder, output_pdf):
         {'color': '#CC79A7', 'linestyle': '--', 'marker': 'v'},      # 紫 - 虛線倒三角
     ]
 
-    plt.figure(figsize=(12, 7), dpi=300)
+    plt.figure(figsize=(8, 4), dpi=300)
     for idx, (strategy, df) in enumerate(sorted(strategy_results.items())):
         values_sorted = np.sort(df["NormalizedFLSI"].dropna().values)
         cdf = np.arange(1, len(values_sorted) + 1) / len(values_sorted)
@@ -72,7 +72,7 @@ def main(input_folder, output_pdf):
     plt.xlim(0, 0.6)
     plt.ylim(0, 1.0)
     plt.legend(
-        fontsize=7,
+        fontsize=9,
         loc='center left',
         bbox_to_anchor=(1, 0.5),
         title="Strategies",
@@ -123,7 +123,7 @@ def main(input_folder, output_pdf):
     hatches = ['', '', '-', '/', '\\', '|', '+', 'x', '.', '*']
 
     # 畫每個群組
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(12, 4.67))
     width = 0.15
     x = np.arange(len(flsi_df.index))  # 策略數
 
@@ -176,7 +176,7 @@ def main(input_folder, output_pdf):
     consec_flsi_df = consec_flsi_df.loc[desired_order]  # 使用相同順序
 
     # 畫圖
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(12, 4.67))
     width = 0.15
     x = np.arange(len(consec_flsi_df.index))
 
@@ -250,7 +250,7 @@ def analyze_itri_versions(input_folder, output_prefix="itri_topoSorted"):
             all_versions[version] = df
 
     # 畫 CDF
-    plt.figure(figsize=(12, 7), dpi=300)
+    plt.figure(figsize=(8, 4.67), dpi=300)
     for version, df in sorted(all_versions.items()):
         values_sorted = np.sort(df["NormalizedFLSI"].dropna().values)
         cdf = np.arange(1, len(values_sorted) + 1) / len(values_sorted)
@@ -280,7 +280,7 @@ def analyze_itri_versions(input_folder, output_prefix="itri_topoSorted"):
     hatches = ['', '', '-', '/', '\\', '|', '+', 'x', '.', '*']
 
 
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(12, 4.67))
     width = 0.15
     x = np.arange(len(flsi_df.index))
 
@@ -329,7 +329,7 @@ def analyze_itri_versions(input_folder, output_prefix="itri_topoSorted"):
         consec_dist[version] = counts
     consec_df = pd.DataFrame(consec_dist).fillna(0).astype(int).T
 
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(12, 4.67))
     width = 0.15
     x = np.arange(len(consec_df.index))
 
